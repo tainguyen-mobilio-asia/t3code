@@ -480,6 +480,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["beta boring sidebar folder rows multiline branch pull request details"],
   },
   {
+    id: "boring-sidebar-all-threads",
+    title: "Every thread in its project folder",
+    to: "/settings/labs",
+    targetId: "boring-sidebar",
+    searchTerms: ["beta boring sidebar folder all threads pinned snoozed settled one list"],
+  },
+  {
     id: "tool-call-visibility",
     title: "Tool calls in chat",
     to: "/settings/chat",

@@ -48,6 +48,7 @@ function BoringSidebarRow() {
       {settings.boringSidebarEnabled ? (
         <div className="mt-2 mb-2 border-l-2 border-border/60 ps-3">
           <BoringSidebarMultilineRow />
+          <BoringSidebarAllThreadsRow />
         </div>
       ) : null}
     </SettingsRow>
@@ -69,6 +70,27 @@ function BoringSidebarMultilineRow() {
             updateSettings({ boringSidebarMultilineRows: Boolean(checked) })
           }
           aria-label="Two-line folder rows"
+        />
+      }
+    />
+  );
+}
+
+function BoringSidebarAllThreadsRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...searchableSetting("boring-sidebar-all-threads")}
+      className="px-0 py-2 sm:px-0"
+      description="List pinned, snoozed, and settled threads inside their project folder too, and give every open project a folder."
+      control={
+        <Switch
+          checked={settings.boringSidebarAllThreads}
+          onCheckedChange={(checked) =>
+            updateSettings({ boringSidebarAllThreads: Boolean(checked) })
+          }
+          aria-label="Every thread in its project folder"
         />
       }
     />

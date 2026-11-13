@@ -351,3 +351,78 @@ describe("sidebar settled pagination", () => {
     expect(screen.container.querySelectorAll("[data-thread-item]")).toHaveLength(loadedRows);
   });
 });
+
+describe("boring sidebar holding every thread", () => {
+  it("lists pinned and settled threads in their folder and keeps an empty project's folder", async () => {
+    using stack = new DisposableStack();
+    const previousSettings = getClientSettings();
+    stack.defer(() => __setClientSettingsForTests(previousSettings));
+    __setClientSettingsForTests({
+      ...DEFAULT_CLIENT_SETTINGS,
+      boringSidebarEnabled: true,
+      boringSidebarAllThreads: true,
+    });
+    const activeProject = project("active");
+    const threads = [
+      makeThreadFixture({
+        environmentId: activeProject.environmentId,
+        projectId: activeProject.id,
+        id: ThreadId.make("pinned"),
+        title: "Pinned thread",
+        pinnedAt: "2026-01-02T00:00:00.000Z",
+      }),
+      makeThreadFixture({
+        environmentId: activeProject.environmentId,
+        projectId: activeProject.id,
+        id: ThreadId.make("settled"),
+        title: "Settled thread",
+        settledOverride: "settled",
+        settledAt: "2026-01-01T00:00:00.000Z",
+      }),
+    ];
+    vi.mocked(useProjects).mockReturnValue([activeProject, project("idle")]);
+    vi.mocked(useQuietThreadShells).mockReturnValue(threads);
+    vi.mocked(useThreadRouteTarget).mockReturnValue(null);
+    vi.mocked(useHandleNewThread).mockReturnValue({
+      activeDraftThread: null,
+      activeThread: null,
+      defaultProjectRef: {
+        environmentId: activeProject.environmentId,
+        projectId: activeProject.id,
+      },
+      defaultProjectFallbackReady: true,
+      handleNewThread: vi.fn().mockResolvedValue(null),
+      routeDraftId: null,
+      routeThreadRef: null,
+    });
+    vi.mocked(useServerConfigs).mockReturnValue(
+      new Map([
+        [
+          activeProject.environmentId,
+          {
+            scratchWorkspaceRoot: null,
+            shellThreadFamilies: false,
+          } as unknown as EnvironmentServerConfig,
+        ],
+      ]),
+    );
+    await using screen = await render(
+      <SidebarProvider>
+        <Sidebar routeReveal={{ observedKey: null, pendingKey: null }} />
+      </SidebarProvider>,
+    );
+
+    await vi.waitFor(() =>
+      expect(screen.container.querySelectorAll("[data-thread-item]")).toHaveLength(2),
+    );
+    expect(
+      screen.container.querySelectorAll('[data-testid="sidebar-project-folder"]'),
+    ).toHaveLength(2);
+    expect(screen.container.querySelector('[data-sidebar-row="shelf:settled"]')).toBeNull();
+    const parents = [...screen.container.querySelectorAll("[data-thread-item]")].map((row) =>
+      row.querySelector("[data-sidebar-parent]")?.getAttribute("data-sidebar-parent"),
+    );
+    expect(parents).toHaveLength(2);
+    expect(parents.every((parent) => parent?.startsWith("folder:"))).toBe(true);
+  });
+});

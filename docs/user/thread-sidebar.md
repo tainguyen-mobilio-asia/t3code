@@ -159,6 +159,11 @@ Pinned threads stay above the folders, and Snoozed and Settled stay below them. 
 can drag a thread onto the composer to mention it, but not within the sidebar, and the Working
 section is off. Each device keeps its own choice.
 
+To keep the whole list in folders, also turn on **Every thread in its project folder** under it.
+Pinned, snoozed, and settled threads then sit in their project's folder, in that order after the
+pinned ones, and every open project has a folder even when it is empty. Older settled threads load
+with **Show older** at the end of the list.
+
 ## Settle finished work
 
 Choose **Settle thread** from its menu to move finished work out of the active list
