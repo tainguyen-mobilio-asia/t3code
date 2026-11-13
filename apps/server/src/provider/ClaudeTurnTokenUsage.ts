@@ -1,5 +1,12 @@
-import type { SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { RuntimeTurnState, TurnTokenUsage } from "@t3tools/contracts";
+import type {
+  SDKControlGetContextUsageResponse,
+  SDKResultMessage,
+} from "@anthropic-ai/claude-agent-sdk";
+import type {
+  OrchestrationV2ContextUsageCategory,
+  RuntimeTurnState,
+  TurnTokenUsage,
+} from "@t3tools/contracts";
 
 function finiteNonNegativeInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
@@ -238,4 +245,31 @@ export function normalizeClaudeTurnTokenUsage(
     ...(inputTokens !== undefined ? { inputTokens } : {}),
     ...(rawOutputTokens !== undefined ? { outputTokens: rawOutputTokens } : {}),
   };
+}
+
+const CONTEXT_CATEGORY_KINDS = new Set(["used", "free", "buffer", "deferred"]);
+
+/** The /context rows worth showing: known kinds with finite counts. Empty when none parse. */
+export function claudeContextCategories(
+  response: Pick<SDKControlGetContextUsageResponse, "categories">,
+): ReadonlyArray<OrchestrationV2ContextUsageCategory> | undefined {
+  const rows: OrchestrationV2ContextUsageCategory[] = [];
+  for (const category of response.categories ?? []) {
+    const tokens = finiteNonNegativeInteger(category.tokens);
+    if (
+      tokens === undefined ||
+      typeof category.name !== "string" ||
+      category.name.length === 0 ||
+      !CONTEXT_CATEGORY_KINDS.has(category.kind)
+    ) {
+      continue;
+    }
+    rows.push({
+      ...(typeof category.id === "string" ? { id: category.id } : {}),
+      name: category.name,
+      tokens,
+      kind: category.kind,
+    });
+  }
+  return rows.length === 0 ? undefined : rows;
 }

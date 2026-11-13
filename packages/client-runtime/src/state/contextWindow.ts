@@ -1,6 +1,7 @@
 import {
   resolveIdleCompaction,
   type ModelSelection,
+  type OrchestrationV2ContextUsageCategory,
   type OrchestrationV2ProviderTurn,
   type OrchestrationV2ProviderTurnTokenUsage,
   type OrchestrationV2ProviderThread,
@@ -36,6 +37,7 @@ type NullableContextWindowUsage = {
 };
 
 export type ContextWindowSnapshot = NullableContextWindowUsage & {
+  readonly categories: ReadonlyArray<OrchestrationV2ContextUsageCategory> | null;
   readonly remainingTokens: number | null;
   readonly usedPercentage: number | null;
   readonly remainingPercentage: number | null;
@@ -89,6 +91,7 @@ export function deriveLatestContextWindowSnapshot(
     const remainingPercentage = usedPercentage !== null ? Math.max(0, 100 - usedPercentage) : null;
     return {
       usedTokens,
+      categories: liveUsage.contextCategories ?? null,
       totalProcessedTokens: null,
       maxTokens,
       remainingTokens,
@@ -124,6 +127,7 @@ export function deriveLatestContextWindowSnapshot(
       maxTokens !== null && maxTokens > 0 ? Math.min(100, (usedTokens / maxTokens) * 100) : null;
     return {
       usedTokens,
+      categories: null,
       totalProcessedTokens: asFiniteNumber(providerUsage.totalProcessedTokens),
       maxTokens,
       remainingTokens: maxTokens === null ? null : Math.max(0, Math.round(maxTokens - usedTokens)),
@@ -166,6 +170,7 @@ export function deriveLatestContextWindowSnapshot(
 
     return {
       usedTokens,
+      categories: null,
       totalProcessedTokens: asFiniteNumber(payload.beforeTokenCount),
       maxTokens,
       remainingTokens,

@@ -28,6 +28,7 @@ import {
 import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
 import {
   addClaudeLedgerUsage,
+  claudeContextCategories,
   claudeLedgerDelta,
   claudeModelLedger,
   claudeReportedContextWindows,
@@ -60,6 +61,7 @@ import {
   type SpawnedProcess as ClaudeSpawnedProcess,
   type SDKAssistantMessage,
   type SDKAPIRetryMessage,
+  type SDKControlGetContextUsageResponse,
   type SDKMessage,
   type SDKRateLimitInfo,
   type SDKResultMessage,
@@ -111,6 +113,7 @@ import {
   type OrchestrationV2ProviderRetry,
   type OrchestrationV2ProviderSession,
   type OrchestrationV2ProviderThread,
+  type OrchestrationV2ContextUsageCategory,
   type OrchestrationV2ProviderTurn,
   type OrchestrationV2RuntimeRequest,
   type OrchestrationV2UserInputQuestion,
@@ -268,6 +271,7 @@ function claudePromptCacheTtlMs(
 // Below that, Claude compacts 33,000 tokens short of the window: Claude Code 2.1.305's
 // getContextUsage reports a 150,000 window as a 117,000 threshold, for every catalog model.
 const CLAUDE_AUTO_COMPACT_RESERVE_TOKENS = 33_000;
+const CLAUDE_CONTEXT_USAGE_TIMEOUT = "3 seconds";
 
 function claudeAutoCompactThreshold(autoCompactWindow: string, maxTokens: number | null) {
   const windowTokens = Number(autoCompactWindow);
@@ -632,6 +636,11 @@ export interface ClaudeAgentSdkQuerySession {
   ) => Effect.Effect<boolean, ClaudeAgentSdkQueryRunnerError>;
   readonly mcpServerStatus: Effect.Effect<
     ReadonlyArray<ClaudeMcpServerStatus>,
+    ClaudeAgentSdkQueryRunnerError
+  >;
+  /** Claude's /context rows from local estimates; absent on fakes and replays. */
+  readonly contextUsage?: Effect.Effect<
+    SDKControlGetContextUsageResponse,
     ClaudeAgentSdkQueryRunnerError
   >;
   readonly readMcpResource: (input: {
@@ -1645,6 +1654,10 @@ export const layerQueryRunner: Layer.Layer<
             mcpServerStatus: Effect.tryPromise({
               try: () => queryRuntime.mcpServerStatus(),
               catch: (cause) => queryRunnerError(cause, "mcpServerStatus"),
+            }),
+            contextUsage: Effect.tryPromise({
+              try: () => queryRuntime.getContextUsage({ detail: "summary" }),
+              catch: (cause) => queryRunnerError(cause, "contextUsage"),
             }),
             readMcpResource: ({ server, uri }) =>
               Effect.tryPromise({
@@ -5945,6 +5958,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           context: ActiveClaudeTurnContext,
           usage: ClaudeMessageUsage | number,
           requestStarted = false,
+          contextCategories?: ReadonlyArray<OrchestrationV2ContextUsageCategory>,
         ) {
           const now = yield* DateTime.now;
           // Only message_start marks the request start; an assistant snapshot
@@ -5988,10 +6002,30 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               status: "running",
               startedAt: context.startedAt,
               completedAt: null,
-              tokenUsage,
+              tokenUsage:
+                contextCategories === undefined ? tokenUsage : { ...tokenUsage, contextCategories },
               ...(context.executedModel === undefined ? {} : { model: context.executedModel }),
             },
           });
+        });
+
+        // A slow or unsupported control request must not hold up the result frame.
+        const readContextCategories = Effect.fnUntraced(function* (
+          context: ActiveClaudeTurnContext,
+        ) {
+          const liveQuery = yield* Ref.get(queryContext);
+          if (
+            liveQuery === null ||
+            liveQuery.nativeThreadId !== context.nativeThreadId ||
+            liveQuery.query.contextUsage === undefined
+          ) {
+            return undefined;
+          }
+          const response = yield* liveQuery.query.contextUsage.pipe(
+            Effect.timeoutOption(CLAUDE_CONTEXT_USAGE_TIMEOUT),
+            Effect.orElseSucceed(() => Option.none()),
+          );
+          return Option.isNone(response) ? undefined : claudeContextCategories(response.value);
         });
 
         // Claude has no recovered frame; the next assistant message proves recovery.
@@ -11114,7 +11148,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           if (message.type === "result") {
             const contextUsage = context.streamUsage?.usage ?? context.compactionTokens;
             if (resultsReportingNewContextWindow.has(message) && contextUsage !== undefined) {
-              yield* emitContextUsage(context, contextUsage);
+              yield* emitContextUsage(
+                context,
+                contextUsage,
+                false,
+                yield* readContextCategories(context),
+              );
             }
             const completedAt = yield* DateTime.now;
             const interrupted = (yield* Ref.get(interruptedTurns)).has(context.providerTurnId);

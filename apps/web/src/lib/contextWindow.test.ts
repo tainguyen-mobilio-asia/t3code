@@ -58,11 +58,15 @@ describe("live provider-turn usage (#8144)", () => {
       inputTokens: 40_000,
       outputTokens: 2_000,
       autoCompactThreshold: 150_000,
+      contextCategories: [{ id: "messages", name: "Messages", tokens: 30_000, kind: "used" }],
       updatedAt: "2026-08-27T00:00:00.000Z",
     });
     const snapshot = deriveLatestContextWindowSnapshot([], usage);
     expect(snapshot).not.toBeNull();
     expect(snapshot?.usedTokens).toBe(42_000);
+    expect(snapshot?.categories).toEqual([
+      { id: "messages", name: "Messages", tokens: 30_000, kind: "used" },
+    ]);
     expect(snapshot?.maxTokens).toBe(200_000);
     expect(snapshot?.remainingTokens).toBe(158_000);
     expect(snapshot?.usedPercentage).toBe(21);

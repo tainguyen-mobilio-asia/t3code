@@ -1,4 +1,5 @@
 import type {
+  OrchestrationV2ContextUsageCategory,
   ProviderInstanceId,
   ServerProvider,
   ServerProviderUsageWindow,
@@ -134,7 +135,71 @@ export function ThreadDetailsContext({ usage }: { readonly usage: ContextWindowS
           }
         />
       </div>
+      {usage.categories !== null && maxTokens !== null ? (
+        <ContextBreakdown categories={usage.categories} maxTokens={maxTokens} />
+      ) : null}
     </ThreadDetailsSection>
+  );
+}
+
+// Keyed on the CLI's stable row ids; unknown rows share the neutral tone.
+const CATEGORY_TONE: Record<string, string> = {
+  messages: "bg-info",
+  system_tools: "bg-warning",
+  mcp_tools: "bg-success",
+  mcp_instructions: "bg-success/60",
+  system_prompt: "bg-foreground/70",
+  custom_agents: "bg-foreground/50",
+  skills: "bg-foreground/40",
+  memory_files: "bg-foreground/30",
+};
+
+function categoryTone(category: OrchestrationV2ContextUsageCategory): string {
+  if (category.kind === "free") return "bg-muted-foreground/15";
+  if (category.kind === "buffer") return "bg-muted-foreground/35";
+  if (category.kind === "deferred") return "bg-muted-foreground/50";
+  return CATEGORY_TONE[category.id ?? ""] ?? "bg-muted-foreground";
+}
+
+/** Claude's /context rows: a segmented bar of what fills the window, then one line per row. */
+function ContextBreakdown({
+  categories,
+  maxTokens,
+}: {
+  readonly categories: ReadonlyArray<OrchestrationV2ContextUsageCategory>;
+  readonly maxTokens: number;
+}) {
+  const rows = categories.filter((category) => category.tokens > 0);
+  if (rows.length === 0) return null;
+  const segments = rows.filter((category) => category.kind !== "deferred");
+  const share = (tokens: number) => Math.min(100, (tokens / maxTokens) * 100);
+  return (
+    <div className="mt-1 px-2.5 text-xs">
+      <div className="flex h-[5px] w-full gap-px overflow-hidden rounded-full">
+        {segments.map((category) => (
+          <span
+            key={category.id ?? category.name}
+            aria-hidden
+            className={cn("h-full shrink-0", categoryTone(category))}
+            style={{ width: `${share(category.tokens)}%` }}
+          />
+        ))}
+      </div>
+      <ul className="mt-1.5 grid grid-cols-[auto_1fr_auto_3ch] items-center gap-x-2 gap-y-0.5">
+        {rows.map((category) => (
+          <li key={category.id ?? category.name} className="contents">
+            <span aria-hidden className={cn("size-2 rounded-xs", categoryTone(category))} />
+            <span className="truncate text-muted-foreground">{category.name}</span>
+            <span className="text-end tabular-nums text-muted-foreground">
+              {formatContextWindowTokens(category.tokens)}
+            </span>
+            <span className="text-end font-medium tabular-nums text-foreground/80">
+              {category.kind === "deferred" ? "n/a" : `${share(category.tokens).toFixed(0)}%`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

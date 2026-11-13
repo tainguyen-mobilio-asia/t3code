@@ -227,8 +227,18 @@ export const OrchestrationV2ContextTransferResolution = Schema.Union([
 export type OrchestrationV2ContextTransferResolution =
   typeof OrchestrationV2ContextTransferResolution.Type;
 
+// One row of Claude's /context breakdown. `kind` classifies; `name` is display text.
+export const OrchestrationV2ContextUsageCategory = Schema.Struct({
+  id: Schema.optional(Schema.String),
+  name: Schema.String,
+  tokens: NonNegativeInt,
+  kind: Schema.Literals(["used", "free", "buffer", "deferred"]),
+});
+export type OrchestrationV2ContextUsageCategory = typeof OrchestrationV2ContextUsageCategory.Type;
+
 export const OrchestrationV2ProviderTurnTokenUsage = Schema.Struct({
   usedTokens: NonNegativeInt,
+  contextCategories: Schema.optional(Schema.Array(OrchestrationV2ContextUsageCategory)),
   maxTokens: Schema.optional(Schema.NullOr(NonNegativeInt)),
   inputTokens: Schema.optional(NonNegativeInt),
   cachedInputTokens: Schema.optional(NonNegativeInt),

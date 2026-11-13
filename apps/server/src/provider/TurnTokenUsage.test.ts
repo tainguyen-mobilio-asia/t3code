@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  claudeContextCategories,
   claudeLedgerDelta,
   claudeModelLedger,
   normalizeClaudeTurnTokenUsage,
@@ -231,5 +232,26 @@ describe("billable native turn usage", () => {
         [{ input_tokens: 4, output_tokens: 2 }],
       ),
     ).toMatchObject({ usageStatus: "complete", inputTokens: 9, outputTokens: 5 });
+  });
+});
+
+describe("claudeContextCategories", () => {
+  it("keeps rows with a known kind and a finite count, in CLI order", () => {
+    expect(
+      claudeContextCategories({
+        categories: [
+          { id: "system_prompt", name: "System prompt", tokens: 12_000, color: "", kind: "used" },
+          { name: "Free space", tokens: 728_300.4, color: "", kind: "free" },
+          { name: "MCP tools (deferred)", tokens: 52_400, color: "", kind: "deferred" },
+          { name: "Bogus", tokens: Number.NaN, color: "", kind: "used" },
+          { name: "Future", tokens: 1, color: "", kind: "later" as "used" },
+        ],
+      }),
+    ).toEqual([
+      { id: "system_prompt", name: "System prompt", tokens: 12_000, kind: "used" },
+      { name: "Free space", tokens: 728_300, kind: "free" },
+      { name: "MCP tools (deferred)", tokens: 52_400, kind: "deferred" },
+    ]);
+    expect(claudeContextCategories({ categories: [] })).toBeUndefined();
   });
 });
