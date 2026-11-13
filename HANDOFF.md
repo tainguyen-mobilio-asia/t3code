@@ -53,11 +53,13 @@ Nếu muốn mở nhánh theo ngày mới: `git checkout -b tainguyen-mobilio-as
 ## Build app Electron (macOS, chạy local)
 
 ```bash
-export PATH="$PWD/node_modules/.bin:$PATH"
+export PATH="$HOME/.cargo/bin:$PWD/node_modules/.bin:$PATH"
 vp i
-vp run dist:desktop:dmg          # arm64 theo máy; ra thư mục release/
+vp run dist:desktop:dmg          # arm64 theo máy; ra thư mục release/; mất khoảng 1 phút
 ```
 
+- Cần Rust (resource monitor của app). Đã cài qua rustup ngày 2026-11-14 vào `~/.cargo` (gỡ: `rustup self uninstall`).
+  Nếu thiếu, build báo `MacDesktopBuildPrerequisitesMissingError`.
 - Bản build local **không ký (unsigned)**. Lần đầu mở: chuột phải → Open, hoặc
   `xattr -dr com.apple.quarantine "/Applications/T3 Code (Beta).app"`.
 - App build từ fork không có update feed, nên nó **không tự cập nhật**; cập nhật = làm quy trình ở trên rồi build lại.
@@ -65,8 +67,11 @@ vp run dist:desktop:dmg          # arm64 theo máy; ra thư mục release/
 
 ## Trạng thái
 
-- 2026-11-14: tạo nhánh `tainguyen-mobilio-asia/2026-11-14`; thêm context breakdown; viết file này. Build DMG: xem mục "Nhật ký" bên dưới.
+- 2026-11-14: tạo nhánh `tainguyen-mobilio-asia/2026-11-14`; thêm context breakdown; viết file này.
+  Build DMG thành công: `release/T3-Code-0.1.9-arm64.dmg` (chưa ký). Chưa kiểm tra giao diện breakdown bằng một lượt Claude thật;
+  việc tiếp theo: mở app đã build, bật Settings → Thread details → Context window, chạy một lượt Claude và xem panel phải.
 
 ## Nhật ký
 
-- 2026-11-14 02:20 — Context breakdown code xong, unit test pass. Đang typecheck + build DMG.
+- 2026-11-14 02:20: context breakdown code xong, unit test + check:changed pass.
+- 2026-11-14 02:21: build DMG lần 1 lỗi thiếu Rust; cài rustup; build lần 2 thành công.
