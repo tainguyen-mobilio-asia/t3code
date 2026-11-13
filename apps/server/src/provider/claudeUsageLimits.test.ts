@@ -39,7 +39,7 @@ describe("claudeUsageResponseToLimits", () => {
           {
             id: "five_hour",
             kind: "session",
-            label: "Session",
+            label: "5-hour limit",
             usedPercent: 54,
             windowDurationMins: 300,
             resetsAt: "2026-07-18T14:39:00.000Z",
@@ -47,7 +47,7 @@ describe("claudeUsageResponseToLimits", () => {
           {
             id: "seven_day",
             kind: "weekly",
-            label: "Weekly",
+            label: "Weekly · all models",
             usedPercent: 18.4,
             windowDurationMins: 10080,
             resetsAt: "2026-07-24T08:59:00.000Z",
@@ -100,7 +100,7 @@ describe("claudeUsageResponseToLimits", () => {
       {
         id: "seven_day",
         kind: "weekly",
-        label: "Weekly",
+        label: "Weekly · all models",
         usedPercent: 100,
         windowDurationMins: 10080,
       },
@@ -158,7 +158,7 @@ describe("claudeUsageResponseToLimits", () => {
       {
         id: "five_hour",
         kind: "session",
-        label: "Session",
+        label: "5-hour limit",
         usedPercent: 12,
         windowDurationMins: 300,
       },
@@ -240,7 +240,7 @@ describe("claudeRateLimitEventToUpdate", () => {
         {
           id: "seven_day",
           kind: "weekly",
-          label: "Weekly",
+          label: "Weekly · all models",
           usedPercent: 85,
           windowDurationMins: 10080,
           resetsAt: "2026-07-14T03:33:20.000Z",
@@ -255,7 +255,9 @@ describe("claudeRateLimitEventToUpdate", () => {
       rateLimitType: "seven_day_overage_included" as never,
       utilization: 0.4,
     } as const;
-    expect(claudeRateLimitEventToUpdate(event, noNames)).toBeUndefined();
+    expect(claudeRateLimitEventToUpdate(event, noNames)).toEqual(
+      claudeRateLimitEventToUpdate(event, { overageIncluded: "Fable" }),
+    );
     expect(claudeRateLimitEventToUpdate(event, { overageIncluded: "Fable" })).toEqual({
       windows: [
         {
@@ -264,6 +266,55 @@ describe("claudeRateLimitEventToUpdate", () => {
           label: "Weekly · Fable",
           usedPercent: 40,
           windowDurationMins: 10080,
+        },
+      ],
+    });
+  });
+
+  it("reads every bucket from unifiedWindows when the event carries it", () => {
+    expect(
+      claudeRateLimitEventToUpdate(
+        {
+          status: "allowed",
+          rateLimitType: "five_hour",
+          utilization: 0.59,
+          resetsAt: 1_794_615_000,
+          ...({
+            unifiedWindows: {
+              five_hour: { utilization: 0.59, resetsAt: 1_794_615_000, status: "allowed" },
+              seven_day: { utilization: 0.08, resetsAt: 1_795_024_800, status: "allowed" },
+              seven_day_overage_included: { utilization: 0.15, resetsAt: 1_795_024_800 },
+              future_bucket: { utilization: 0.5 },
+            },
+          } as object),
+        },
+        noNames,
+      ),
+    ).toEqual({
+      windows: [
+        {
+          id: "five_hour",
+          kind: "session",
+          label: "5-hour limit",
+          usedPercent: 59,
+          windowDurationMins: 300,
+          resetsAt: "2026-11-14T00:10:00.000Z",
+        },
+        {
+          id: "seven_day",
+          kind: "weekly",
+          label: "Weekly · all models",
+          usedPercent: 8,
+          windowDurationMins: 10080,
+          resetsAt: "2026-11-18T18:00:00.000Z",
+        },
+        {
+          id: "seven_day_fable",
+          kind: "weekly",
+          label: "Weekly · Fable",
+          usedPercent: 15,
+          windowDurationMins: 10080,
+          resetsAt: "2026-11-18T18:00:00.000Z",
         },
       ],
     });

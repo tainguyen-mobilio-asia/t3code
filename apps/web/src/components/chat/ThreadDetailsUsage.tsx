@@ -40,7 +40,17 @@ export interface ThreadDetailsUsageInput {
 
 type UsageTone = "error" | "warning" | null;
 
-/** The selected provider's limit windows. Each row reads as room left. */
+const CLAUDE_USAGE_URL = "https://claude.ai/settings/usage";
+
+/** "Claude Pro Subscription" reads as "Pro" beside the heading; API keys have no plan. */
+function planLabel(provider: ServerProvider | undefined): string | null {
+  const auth = provider?.auth;
+  if (auth?.status !== "authenticated" || auth.type === "apiKey" || !auth.label) return null;
+  const short = auth.label.replace(/^Claude\s+/i, "").replace(/\s+Subscription$/i, "");
+  return short.length > 0 ? short : null;
+}
+
+/** The selected provider's limit windows, laid out like Claude Code's usage card: used percent and reset per row. */
 export function ThreadDetailsUsage({
   providerInstanceId,
   providers,
@@ -52,29 +62,36 @@ export function ThreadDetailsUsage({
     providerInstanceId !== null
       ? collectProviderUsageLimits(providerInstanceId, providers, sources, now)
       : null;
+  const provider = providers.find((entry) => entry.instanceId === providerInstanceId);
   // Only this instance's data: the report keeps one instance per login, and any other entry may be
   // a different login or workspace, so fall back to the instance's own snapshot.
   const limits =
     report?.accounts.find((entry) => entry.instanceId === providerInstanceId)?.limits ??
-    providers.find((provider) => provider.instanceId === providerInstanceId)?.usageLimits;
+    provider?.usageLimits;
   if (!limits) return null;
-  const notice = limitsNotice(limits);
+  const notice = limits.windows.length === 0 ? limitsNotice(limits) : null;
+  const plan = planLabel(provider);
 
   return (
     <ThreadDetailsSection
       headingId="thread-details-usage-heading"
-      title="Usage limits"
-      showHeading={false}
+      title={plan ? `Plan usage limits · ${plan}` : "Plan usage limits"}
+      actions={
+        provider?.driver === "claudeAgent" ? (
+          <a
+            href={CLAUDE_USAGE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-2xs text-muted-foreground hover:text-foreground"
+          >
+            See all
+          </a>
+        ) : undefined
+      }
     >
-      <div className="grid grid-cols-[auto_minmax(3rem,1fr)_auto] gap-x-3 text-xs">
+      <div className="flex flex-col gap-2 px-2.5 pb-0.5 text-xs">
         {notice ? (
-          <UsageRow
-            label="Limits"
-            fill={null}
-            tone={null}
-            value="Unavailable"
-            tooltip={<span className="text-foreground">{notice}</span>}
-          />
+          <span className="text-muted-foreground">{notice}</span>
         ) : (
           limits.windows.map((window) => <LimitRow key={window.id} window={window} now={now} />)
         )}
@@ -211,31 +228,70 @@ function LimitRow({
   readonly now: number;
 }) {
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
+  const used = Math.round(Math.max(0, Math.min(100, window.usedPercent)));
   const left = remainingPercent(window);
   const pace = paceOf(window, now);
   const resetsAt = window.resetsAt ? Date.parse(window.resetsAt) : Number.NaN;
+  const resets =
+    window.resetsAt && resetsAt > now
+      ? formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)
+      : null;
+  const tone: UsageTone = left <= 10 ? "error" : left <= 20 ? "warning" : null;
   return (
-    <UsageRow
-      label={window.label}
-      fill={left}
-      tone={left <= 10 ? "error" : left <= 20 ? "warning" : null}
-      value={`${left}%`}
-      ariaValue={`${left}% left`}
-      tooltip={
-        <>
-          <span className="text-foreground">
-            {window.label}: {left}% left
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div
+            tabIndex={0}
+            aria-label={`${window.label}: ${used}% used`}
+            className="flex cursor-default flex-col gap-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          />
+        }
+      >
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-foreground/90">{window.label}</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground">
+            {resets ? (resets.includes(" ") ? `Resets ${resets}` : `Resets at ${resets}`) : null}
+            <span
+              className={cn(
+                "ml-2 font-medium",
+                tone === "error"
+                  ? "text-error-foreground"
+                  : tone === "warning"
+                    ? "text-warning-foreground"
+                    : "text-foreground/80",
+              )}
+            >
+              {used}%
+            </span>
           </span>
-          {window.resetsAt && resetsAt > now ? (
+        </div>
+        <span className="relative h-[3px] w-full rounded-full bg-muted-foreground/30 dark:bg-muted-foreground/20">
+          {used > 0 ? (
+            <span
+              className={cn(
+                "absolute inset-y-0 left-0 rounded-full",
+                tone === "error" ? "bg-error" : tone === "warning" ? "bg-warning" : "bg-info",
+              )}
+              style={{ width: `max(${used}%, 4px)` }}
+            />
+          ) : null}
+        </span>
+      </TooltipTrigger>
+      <TooltipPopup side="left" sideOffset={16}>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-foreground">
+            {window.label}: {used}% used, {left}% left
+          </span>
+          {resets ? (
             <span className="text-muted-foreground">
-              Resets in {formatDuration(resetsAt - now)} ·{" "}
-              {formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)}
+              Resets in {formatDuration(resetsAt - now)}
             </span>
           ) : null}
           {pace ? <span className="text-muted-foreground">{PACE_LABEL[pace]}</span> : null}
-        </>
-      }
-    />
+        </div>
+      </TooltipPopup>
+    </Tooltip>
   );
 }
 

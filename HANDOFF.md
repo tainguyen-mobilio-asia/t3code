@@ -25,8 +25,17 @@ Hướng dẫn build và cài app: `BUILD-LOCAL.md`. File này là sổ tay cho 
    - `packages/client-runtime/src/state/contextWindow.ts`: `ContextWindowSnapshot.categories`.
    - `apps/web/src/components/chat/ThreadDetailsUsage.tsx`: `ContextBreakdown` (thanh phân đoạn + từng dòng) dưới hàng "Context".
    - Bật ở Settings → Thread details → "Context window" và "Usage limits" (mặc định tắt trong upstream).
-3. **Giới hạn gói Claude (5-hour, Weekly)**: upstream đã có sẵn (`ThreadDetailsUsage`, `claudeUsageLimits.ts`). Không phải code riêng.
-   "Limits: Unavailable" nghĩa là probe `get_usage` của Claude CLI thất bại hoặc tài khoản không có rate limit; kiểm tra bản Claude Code CLI đang cài.
+3. **Giới hạn gói Claude (kiểu "Plan usage limits" của Claude Code)**:
+   - Vấn đề gốc: probe `get_usage` lúc khởi động chạy không có OAuth (`tokenSource: none`) nên báo `rate_limits_available: false`,
+     và upstream bỏ qua mọi `rate_limit_event` stream về sau khi probe nói "unsupported" → panel kẹt ở "Unavailable".
+   - `packages/provider-core/src/server/usageLimits.ts`: `applyUsageLimitsUpdate` luôn nhận window từ stream và xóa `unavailable`;
+     `resolveUsageLimitsAfterProbe` giữ window đã publish khi probe thất bại hoặc "unsupported". Test cập nhật theo.
+   - `apps/server/src/provider/claudeUsageLimits.ts`: đọc `unifiedWindows` (mọi bucket trong một event); nhãn "5-hour limit",
+     "Weekly · all models"; bucket `seven_day_overage_included` mặc định tên "Weekly · Fable" khi probe không đặt tên (giả định:
+     allowlist overage của CLI hiện có đúng một model).
+   - `apps/web/src/components/chat/ThreadDetailsUsage.tsx`: heading "Plan usage limits · <gói>", link "See all" → claude.ai/settings/usage,
+     mỗi hàng: nhãn, "Resets at …", % đã dùng, thanh màu info bên dưới.
+   - Số liệu chỉ có sau lượt Claude đầu tiên của phiên server (stream), không có ngay khi mở app.
 
 ## Quy trình cập nhật từ upstream
 
@@ -75,3 +84,5 @@ vp run dist:desktop:dmg          # arm64 theo máy; ra thư mục release/; mấ
 
 - 2026-11-14 02:20: context breakdown code xong, unit test + check:changed pass.
 - 2026-11-14 02:21: build DMG lần 1 lỗi thiếu Rust; cài rustup; build lần 2 thành công.
+- 2026-11-14 02:47: fix breakdown mất khi lượt đang chạy (giữ rows trong tiến trình).
+- 2026-11-14 03:12: plan usage limits lấy từ stream, UI kiểu Claude Code; build lần 4.

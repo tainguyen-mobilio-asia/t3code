@@ -22,9 +22,26 @@ const WEEK_MINS = 7 * 24 * 60;
 const WINDOWS: Readonly<
   Record<string, Pick<ServerProviderUsageWindow, "kind" | "label" | "windowDurationMins">>
 > = {
-  five_hour: { kind: "session", label: "Session", windowDurationMins: SESSION_MINS },
-  seven_day: { kind: "weekly", label: "Weekly", windowDurationMins: WEEK_MINS },
+  five_hour: { kind: "session", label: "5-hour limit", windowDurationMins: SESSION_MINS },
+  seven_day: { kind: "weekly", label: "Weekly · all models", windowDurationMins: WEEK_MINS },
 };
+
+// Claude Code names this bucket after the single model on the CLI's overage allowlist.
+const OVERAGE_INCLUDED_FALLBACK_NAME = "Fable";
+
+interface UnifiedWindow {
+  readonly utilization?: number | null;
+  readonly resetsAt?: number | null;
+}
+
+/** `unifiedWindows` carries every bucket per event; it predates the SDK typings we pin. */
+function readUnifiedWindows(info: SDKRateLimitInfo): ReadonlyArray<[string, UnifiedWindow]> {
+  const raw = (info as { readonly unifiedWindows?: unknown }).unifiedWindows;
+  if (typeof raw !== "object" || raw === null) return [];
+  return Object.entries(raw as Record<string, unknown>).filter(
+    (entry): entry is [string, UnifiedWindow] => typeof entry[1] === "object" && entry[1] !== null,
+  );
+}
 
 /** Reuse probed display names for streamed bucket types so mid-turn updates target the same row. */
 const OVERAGE_INCLUDED_EVENT_TYPE = "seven_day_overage_included";
@@ -156,19 +173,35 @@ export function claudeRateLimitEventToUpdate(
   info: SDKRateLimitInfo,
   names: ClaudeScopedLimitNames,
 ): ProviderUsageLimitsUpdate | undefined {
+  const overageName = names.overageIncluded ?? OVERAGE_INCLUDED_FALLBACK_NAME;
+  const windowFor = (
+    type: string,
+    utilization: number,
+    resetsAt: string | undefined,
+  ): ServerProviderUsageWindow | undefined => {
+    const usedPercent = utilization * 100;
+    if (type in WINDOWS) return makeWindow(type, usedPercent, resetsAt);
+    if (type === OVERAGE_INCLUDED_EVENT_TYPE)
+      return scopedWindow(overageName, usedPercent, resetsAt);
+    return undefined;
+  };
+  const unified: ServerProviderUsageWindow[] = [];
+  for (const [type, window] of readUnifiedWindows(info)) {
+    if (typeof window.utilization !== "number") continue;
+    const row = windowFor(
+      type,
+      window.utilization,
+      isoFromEpochSeconds(window.resetsAt ?? undefined),
+    );
+    if (row !== undefined) unified.push(row);
+  }
+  if (unified.length > 0) return { windows: unified };
   const type: string | undefined = info.rateLimitType;
   if (!type || typeof info.utilization !== "number") {
     return undefined;
   }
-  const usedPercent = info.utilization * 100;
-  const resetsAt = isoFromEpochSeconds(info.resetsAt);
-  if (type in WINDOWS) {
-    return { windows: [makeWindow(type, usedPercent, resetsAt)] };
-  }
-  if (type === OVERAGE_INCLUDED_EVENT_TYPE && names.overageIncluded) {
-    return { windows: [scopedWindow(names.overageIncluded, usedPercent, resetsAt)] };
-  }
-  return undefined;
+  const row = windowFor(type, info.utilization, isoFromEpochSeconds(info.resetsAt));
+  return row === undefined ? undefined : { windows: [row] };
 }
 
 /** get_usage percentages are already 0-100. */

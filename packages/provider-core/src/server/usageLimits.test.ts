@@ -73,20 +73,20 @@ describe("applyUsageLimitsUpdate", () => {
     });
   });
 
-  it("leaves an unsupported account and an empty update alone", () => {
+  it("lets a streamed window replace an unsupported verdict, and leaves an empty update alone", () => {
     const unsupported = { checkedAt, windows: [], unavailable: { reason: "unsupported" as const } };
     expect(
       applyUsageLimitsUpdate({ previous: unsupported, checkedAt, update: { windows: [session] } }),
-    ).toBe(unsupported);
+    ).toEqual({ checkedAt, windows: [session] });
     expect(
       applyUsageLimitsUpdate({ previous: published, checkedAt, update: { windows: [] } }),
     ).toBe(published);
   });
 
-  it("marks a first sparse update as unavailable", () => {
+  it("publishes a first sparse update as is", () => {
     expect(
       applyUsageLimitsUpdate({ previous: undefined, checkedAt, update: { windows: [weekly] } }),
-    ).toEqual({ checkedAt, windows: [weekly], unavailable: { reason: "probeFailed" } });
+    ).toEqual({ checkedAt, windows: [weekly] });
   });
 
   it("preserves reset credits when a streamed window update changes usage", () => {
@@ -135,11 +135,14 @@ describe("resolveUsageLimitsAfterProbe", () => {
     expect(resolveUsageLimitsAfterProbe({ published: live, probed: newer })).toEqual(newer);
   });
 
-  it("keeps the last good windows through a failed probe but not an unsupported one", () => {
+  it("keeps the last good windows through a failed or unsupported probe", () => {
     const failed = { checkedAt, windows: [], unavailable: { reason: "probeFailed" as const } };
     const unsupported = { checkedAt, windows: [], unavailable: { reason: "unsupported" as const } };
     expect(resolveUsageLimitsAfterProbe({ published, probed: failed })).toBe(published);
-    expect(resolveUsageLimitsAfterProbe({ published, probed: unsupported })).toBe(unsupported);
+    expect(resolveUsageLimitsAfterProbe({ published, probed: unsupported })).toBe(published);
     expect(resolveUsageLimitsAfterProbe({ published: undefined, probed: failed })).toBe(failed);
+    expect(
+      resolveUsageLimitsAfterProbe({ published: { checkedAt, windows: [] }, probed: unsupported }),
+    ).toBe(unsupported);
   });
 });
