@@ -1,6 +1,6 @@
 # HANDOFF — fork cá nhân của T3 Code
 
-File này là sổ tay cho agent (và cho tôi) đọc lại sau khi session bị compact hoặc khi mở session mới.
+Hướng dẫn build và cài app: `BUILD-LOCAL.md`. File này là sổ tay cho agent (và cho tôi) đọc lại sau khi session bị compact hoặc khi mở session mới.
 Đọc file này trước khi làm bất cứ việc gì trên fork. Cập nhật mục "Trạng thái" sau mỗi phiên làm việc.
 
 ## Bối cảnh
