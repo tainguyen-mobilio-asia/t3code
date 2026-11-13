@@ -28,7 +28,22 @@ cp -R ~/.t3/userdata ~/.t3/userdata.backup-$(date +%Y%m%d)
 3. `vp` (Vite+): cài toàn cục bằng `curl -fsSL https://vite.plus | bash`, hoặc dùng bản trong
    `node_modules/.bin` như các lệnh dưới đây.
 
-## Build
+## Cách nhanh: app nằm ngay ở thư mục gốc
+
+```bash
+cd ~/Documents/GitHub/t3code
+./build-app.sh            # build rồi đặt "T3 Code (Beta).app" ở thư mục gốc
+./build-app.sh --unpack   # chỉ giải nén bản build mới nhất trong release/, không build lại
+open "T3 Code (Beta).app"
+```
+
+Script tự thêm Rust và `vp` vào PATH, từ chối chạy khi app đang mở, xóa bản app cũ ở gốc rồi
+giải nén bản mới và bỏ cờ quarantine. App ở gốc được gitignore. Dữ liệu vẫn ở `~/.t3/userdata`,
+nên app này và bản trong `/Applications` dùng chung dữ liệu; chỉ mở một trong hai cùng lúc.
+
+Để mở từ Dock hoặc Spotlight, kéo app này vào Dock một lần; mỗi lần build lại, Dock vẫn trỏ đúng đường dẫn.
+
+## Build thủ công
 
 ```bash
 cd ~/Documents/GitHub/t3code

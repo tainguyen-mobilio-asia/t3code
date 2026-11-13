@@ -51,3 +51,6 @@ node_modules/
 .pnpm-store/
 
 /packages/ssh/.ssh-launcher-test-*/
+
+# Locally built app placed by build-app.sh
+/T3 Code (Beta).app/
