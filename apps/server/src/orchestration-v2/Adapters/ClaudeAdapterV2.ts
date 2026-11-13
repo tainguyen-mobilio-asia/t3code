@@ -11147,13 +11147,15 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
 
           if (message.type === "result") {
             const contextUsage = context.streamUsage?.usage ?? context.compactionTokens;
-            if (resultsReportingNewContextWindow.has(message) && contextUsage !== undefined) {
-              yield* emitContextUsage(
-                context,
-                contextUsage,
-                false,
-                yield* readContextCategories(context),
-              );
+            // Every result refreshes the /context rows; the window size itself rarely changes.
+            if (contextUsage !== undefined) {
+              const contextCategories = yield* readContextCategories(context);
+              if (
+                resultsReportingNewContextWindow.has(message) ||
+                contextCategories !== undefined
+              ) {
+                yield* emitContextUsage(context, contextUsage, false, contextCategories);
+              }
             }
             const completedAt = yield* DateTime.now;
             const interrupted = (yield* Ref.get(interruptedTurns)).has(context.providerTurnId);
