@@ -43,6 +43,17 @@ nên app này và bản trong `/Applications` dùng chung dữ liệu; chỉ m�
 
 Để mở từ Dock hoặc Spotlight, kéo app này vào Dock một lần; mỗi lần build lại, Dock vẫn trỏ đúng đường dẫn.
 
+## Chạy dev (không build) khi đang sửa code
+
+```bash
+./dev-app.sh          # mở Electron ở chế độ dev, hot reload; Ctrl+C để dừng tất cả
+```
+
+- Dùng cùng `~/.t3/userdata` với app đã build, nên chat và project giữ nguyên. Vì dùng chung database,
+  script từ chối chạy khi app đã build đang mở, và ngược lại phải tắt dev trước khi mở app đã build.
+- Dev chậm và nặng hơn bản build (Vite dev server, code chưa minify). Chỉ dùng khi sửa code; dùng hằng ngày thì build.
+- Khi hài lòng với thay đổi, tắt dev rồi `./build-app.sh` để có bản production.
+
 ## Build thủ công
 
 ```bash
