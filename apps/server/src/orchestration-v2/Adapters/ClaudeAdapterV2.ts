@@ -4832,6 +4832,8 @@ interface ClaudeLiveQueryContext {
   handedOffSubagents: ReadonlySet<ActiveClaudeSubagent>;
   // The SDK's per-process model ledger at the last result; a new process starts at zero.
   modelLedger: ClaudeModelLedger | undefined;
+  // Last /context rows; stream usage mid-turn carries them so the panel never blanks.
+  contextCategories: ReadonlyArray<OrchestrationV2ContextUsageCategory> | undefined;
   // Per process, not per session: a relative temp dir follows the cwd this CLI
   // was launched in, and a later turn's cwd can differ.
   readonly taskOutputRoot: string | undefined;
@@ -5984,6 +5986,13 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             if (claudeMessageInputTokens(usage) <= 0) return;
             context.compactionTokens = undefined;
           }
+          const liveQuery = yield* Ref.get(queryContext);
+          const sameProcess = liveQuery?.nativeThreadId === context.nativeThreadId;
+          if (contextCategories !== undefined && sameProcess) {
+            liveQuery.contextCategories = contextCategories;
+          }
+          const carriedCategories =
+            contextCategories ?? (sameProcess ? liveQuery.contextCategories : undefined);
           yield* emitProviderEvent({
             type: "provider_turn.updated",
             driver: CLAUDE_PROVIDER,
@@ -6003,7 +6012,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               startedAt: context.startedAt,
               completedAt: null,
               tokenUsage:
-                contextCategories === undefined ? tokenUsage : { ...tokenUsage, contextCategories },
+                carriedCategories === undefined
+                  ? tokenUsage
+                  : { ...tokenUsage, contextCategories: carriedCategories },
               ...(context.executedModel === undefined ? {} : { model: context.executedModel }),
             },
           });
@@ -12264,6 +12275,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               ),
             ),
             modelLedger: new Map(),
+            contextCategories: undefined,
             taskOutputRoot: claudeTaskOutputRoot(
               adapterOptions.environment,
               path,
