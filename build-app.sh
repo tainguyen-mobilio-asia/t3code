@@ -19,7 +19,7 @@ if [[ -z "$ZIP" ]]; then
   exit 1
 fi
 
-if pgrep -x "T3 Code (Beta)" >/dev/null 2>&1; then
+if ps -axo comm | grep -qF "$APP_NAME/Contents/MacOS/"; then
   echo "T3 Code (Beta) is running. Quit it (Cmd+Q) and run this script again." >&2
   exit 1
 fi
